@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlightBench — Arduino Drone Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">FB</div>
+    <div class="brand-text">
+      <h1>FLIGHTBENCH</h1>
+      <span>Arduino Flight Simulator &amp; Code Bench</span>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="engine-status">
+      <span class="k">ENGINE</span>
+      <span class="v" id="engineState">IDLE</span>
+      <span class="sep">|</span>
+      <span class="k">T+</span>
+      <span class="v" id="clockVal">0.000s</span>
+    </div>
+    <button class="btn-pro" id="btnOpenLicense">
+      <span class="lock-ico">&#128274;</span> Upgrade to Pro — Lifetime &#8377;349
+    </button>
+    <span class="pro-pill" id="proPill" hidden>PRO ACTIVE</span>
+  </div>
+</header>
+
+<main class="workspace">
+
+  <!-- ============ LEFT: CODE + TERMINAL ============ -->
+  <section class="col col-editor">
+    <div class="panel">
+      <div class="panel-head"><span>SKETCH.INO</span><span id="lineCount">— lines</span></div>
+      <div class="editor-shell">
+        <div class="gutter" id="gutter"></div>
+        <div class="code-surface">
+          <pre id="hlLayer" class="hl-layer" aria-hidden="true"><code id="hlCode" class="language-clike"></code></pre>
+          <textarea id="code" class="code-input" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn btn-primary" id="btnRun">&#9654; Compile &amp; Run</button>
+        <button class="btn" id="btnPause" disabled>&#9208; Pause</button>
+        <button class="btn" id="btnStep" disabled>&#9197; Step</button>
+        <button class="btn btn-danger" id="btnReset">&#9632; Reset</button>
+        <div class="speed-block">
+          <span>SPEED</span>
+          <input type="range" id="speedSlider" min="0" max="4" step="1" value="1">
+          <span class="speed-val" id="speedVal">1&times;</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px; flex:1; min-height:0; display:flex; flex-direction:column;">
+      <div class="panel-head">
+        <span>SERIAL MONITOR</span>
+        <button class="btn btn-ghost btn-sm" id="btnClearLog">clear</button>
+      </div>
+      <div id="terminal"></div>
+    </div>
+  </section>
+
+  <!-- ============ CENTER: TABBED SCOPE VIEW ============ -->
+  <section class="col col-scope">
+    <div class="panel scope-panel">
+      <div class="tabbar">
+        <button class="tab active" data-tab="chase">CHASE CAM</button>
+        <button class="tab" data-tab="pid">
+          PID TUNING <span class="lock-badge" id="lockBadgePid">&#128274; PRO</span>
+        </button>
+        <button class="tab" data-tab="scope">OSCILLOSCOPE</button>
+      </div>
+
+      <div class="tab-content active" id="tab-chase">
+        <canvas id="chaseCanvas" width="720" height="380"></canvas>
+        <div class="scope-caption">
+          <span>ALT <b id="capAlt">0.0</b> m</span>
+          <span>HDG <b id="capHdg">000</b>&deg;</span>
+          <span>GSPD <b id="capSpd">0</b></span>
+          <span>BANK <b id="capBank">0</b>&deg;</span>
+          <span>CAM <b id="capCam">0</b>&deg;</span>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-pid">
+        <div class="pid-locked" id="pidLocked">
+          <div class="lock-icon">&#128274;</div>
+          <h3>PID Tuning is a Pro feature</h3>
+          <p>Live step-response graphs for tuning attitude-controller gains against a simplified plant model.</p>
+          <button class="btn btn-primary" id="btnUnlockFromPid">Upgrade to Pro</button>
+        </div>
+        <div class="pid-unlocked" id="pidUnlocked" hidden>
+          <div class="pid-controls">
+            <label>Kp <input type="range" id="kp" min="0" max="4" step="0.05" value="1.2"><span id="kpVal">1.20</span></label>
+            <label>Ki <input type="range" id="ki" min="0" max="2" step="0.02" value="0.15"><span id="kiVal">0.15</span></label>
+            <label>Kd <input type="range" id="kd" min="0" max="2" step="0.02" value="0.35"><span id="kdVal">0.35</span></label>
+          </div>
+          <canvas id="pidCanvas" width="680" height="260"></canvas>
+          <p class="fine-print">Simplified 2nd-order plant, step input at t=0. Illustrative of gain behavior, not a certified attitude model.</p>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-scope">
+        <canvas id="scopeCanvas" width="720" height="380"></canvas>
+        <div class="scope-legend">
+          <span class="lg lg-t">THR</span>
+          <span class="lg lg-y">YAW</span>
+          <span class="lg lg-p">PIT</span>
+          <span class="lg lg-r">ROL</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RIGHT: TRANSMITTER + VEHICLE ============ -->
+  <section class="col col-tx">
+    <div class="panel">
+      <div class="panel-head"><span>TX-2 GROUND CONTROLLER</span><span>MODE 2</span></div>
+      <div class="tx-body">
+        <div class="tx-frame">
+          <div class="sticks-row">
+            <div class="stick-unit" id="stickLeft">
+              <div class="stick-label">THROTTLE / YAW</div>
+              <div class="dial-wrap">
+                <svg class="dial-ticks" viewBox="0 0 160 160"></svg>
+                <div class="stick-boundary"><div class="stick-ring"></div><div class="knob knob-amber" id="leftKnob"></div></div>
+              </div>
+              <div class="readout-row">
+                <div>THR <b class="rv rv-amber" id="roThrottle">0%</b></div>
+                <div>YAW <b class="rv rv-amber" id="roYaw">0</b></div>
+              </div>
+            </div>
+            <div class="stick-unit" id="stickRight">
+              <div class="stick-label">PITCH / ROLL</div>
+              <div class="dial-wrap">
+                <svg class="dial-ticks" viewBox="0 0 160 160"></svg>
+                <div class="stick-boundary"><div class="stick-ring"></div><div class="knob knob-blue" id="rightKnob"></div></div>
+              </div>
+              <div class="readout-row">
+                <div>PIT <b class="rv rv-blue" id="roPitch">0</b></div>
+                <div>ROL <b class="rv rv-blue" id="roRoll">0</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button class="action-btn liftoff" id="btnLiftoff">&#9650; LIFTOFF</button>
+            <button class="action-btn land" id="btnLand">&#9660; LAND</button>
+          </div>
+
+          <div class="aux-grid">
+            <div class="aux-card">
+              <div class="aux-title">ARM STATE</div>
+              <div class="arm-switch">
+                <div class="toggle-track" id="armTrack"><div class="toggle-knob"></div></div>
+                <span class="arm-badge disarmed" id="armBadge">DISARMED</span>
+              </div>
+            </div>
+            <div class="aux-card">
+              <div class="aux-title">FLIGHT MODE</div>
+              <div class="mode-seg">
+                <div class="seg" id="mode-ANGLE">ANGLE</div>
+                <div class="seg" id="mode-ACRO">ACRO</div>
+                <div class="seg" id="mode-RTL">RTL</div>
+              </div>
+            </div>
+            <div class="aux-card">
+              <div class="aux-title">CAMERA TILT</div>
+              <div class="stepper">
+                <button class="stepper-btn" id="btnCamDown">&#9660;</button>
+                <span class="stepper-val" id="camVal">0&deg;</span>
+                <button class="stepper-btn" id="btnCamUp">&#9650;</button>
+              </div>
+            </div>
+            <div class="aux-card">
+              <div class="aux-title">CRUISE SPEED</div>
+              <div class="stepper">
+                <button class="stepper-btn" id="btnSpeedDown">&minus;</button>
+                <span class="stepper-val" id="speedManVal">0</span>
+                <button class="stepper-btn" id="btnSpeedUp">+</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="hud-strip">
+            <div><span class="k">MILLIS</span><span class="v" id="hudMillis">0</span></div>
+            <div><span class="k">LOOP</span><span class="v" id="hudLoops">0</span></div>
+            <div><span class="k">PHASE</span><span class="v" id="hudPhase">&mdash;</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">
+        <span>VEHICLE</span>
+        <span class="lock-badge" id="lockBadgeVehicle">&#128274; PRO</span>
+      </div>
+      <div class="vehicle-body">
+        <div class="mode-seg vehicle-seg">
+          <div class="seg active" id="veh-QUAD">QUADCOPTER</div>
+          <div class="seg" id="veh-HEX">HEXACOPTER</div>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="chkAero" disabled>
+          <span>Advanced aerodynamics (wind / drag / ground effect)</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="chkHud" disabled>
+          <span>Advanced HUD overlay (artificial horizon / tapes)</span>
+        </label>
+      </div>
+    </div>
+
+    <details class="about">
+      <summary>About this simulator / limitations</summary>
+      <ul>
+        <li>Runs a JS transpiler over a common subset of Arduino C++ — not a real compiler. Structs, classes, pointers, and templates are not supported.</li>
+        <li><code>delay()</code> is non-blocking inside <code>setup()</code>, <code>loop()</code>, and any function you define, so long choreographed sequences animate correctly without freezing the tab.</li>
+        <li>Drive the aircraft with <code>drone.setThrottle()/setYaw()/setPitch()/setRoll()/arm()/disarm()/setFlightMode()/setCameraTilt()/setSpeed()</code>, or print telemetry as <code>Serial.println("T:80,Y:0,P:20,R:-10")</code>.</li>
+        <li>The chase camera, PID graph, and physics model are simplified, illustrative simulations — not certified flight-dynamics or control-system models.</li>
+      </ul>
+    </details>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <span>FlightBench runs entirely client-side. Nothing is uploaded anywhere.</span>
+  <button class="btn-donate" id="btnOpenDonate">&#9825; Donate / Support Project</button>
+</footer>
+
+<!-- ============ LICENSE MODAL ============ -->
+<div class="modal-backdrop" id="licenseModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>UPGRADE TO PRO</span>
+      <button class="modal-close" data-close="licenseModal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <img src="qr_ss.png" alt="UPI QR Code" class="qr-code">
+      <p class="modal-strong">Lifetime Pro Access: &#8377;349. Scan the QR code to pay via UPI.</p>
+      <p>To receive your activation key, send a screenshot of your payment AND your Device ID to:</p>
+      <p class="contact-line">WhatsApp: 7980053307 &nbsp;|&nbsp; Email: hey.its.proyash@gmail.com</p>
+
+      <div class="device-id-box">
+        <span class="k">YOUR DEVICE ID</span>
+        <span class="device-id-val" id="deviceIdVal">—</span>
+      </div>
+
+      <div class="activation-row">
+        <input type="text" id="activationInput" placeholder="Enter activation key (e.g. 12345-PRO)">
+        <button class="btn btn-primary" id="btnUnlock">Unlock</button>
+      </div>
+      <p class="unlock-msg" id="unlockMsg"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DONATE MODAL ============ -->
+<div class="modal-backdrop" id="donateModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>SUPPORT FLIGHTBENCH</span>
+      <button class="modal-close" data-close="donateModal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <img src="qr_ss.png" alt="UPI QR" class="qr-code">
+      <p class="modal-strong">Support the development of FlightBench!</p>
+      <p>Scan to donate any amount you wish via UPI. Thank you for keeping this project alive.</p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+<script type="module" src="ui.js"></script>
+</body>
+</html>
