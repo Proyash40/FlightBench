@@ -1,4 +1,4 @@
-# FlightBench 🚁
+# FlightBench 
 
 A zero-hardware, browser-based Arduino flight simulator and code testing bench. FlightBench allows developers and aerospace hobbyists to write standard C++ Arduino flight logic, compile it directly in the browser, and watch a virtual drone execute the commands in real-time.
 
