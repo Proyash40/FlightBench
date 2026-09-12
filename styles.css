@@ -86,8 +86,14 @@ code, .mono{font-family:var(--mono);}
 }
 .col{display:flex; flex-direction:column; min-height:0; gap:0;}
 .col-editor{min-height:640px;}
-.col-tx{overflow-y:auto;}
-.col-tx .panel{flex-shrink:0;}
+.col-tx {
+  display: block; /* Forces standard stacking to fix the overlap bug */
+  overflow-y: auto;
+  padding-right: 6px; /* Gives the scrollbar room to breathe */
+}
+.col-tx .panel {
+  margin-bottom: 16px; /* Replaces the inline margin */
+}
 
 .panel{
   background:linear-gradient(180deg, var(--panel), var(--panel-2));
