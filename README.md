@@ -24,7 +24,7 @@ or update the `src` in index.html if you'd rather name it differently.
 Open the browser console and run:
   localStorage.getItem('flightbench_deviceID')
 to see the current device ID, then compute:
-  Math.floor((deviceID * 95) / 2.6) + "-PRO"
+  Math.floor((deviceID * ####) / #.#) + "-PRO".  {code is confidential}
 to get a working key for that device — useful for your own QA, and worth
 knowing because any user can do the same via DevTools (see the note at the
 top of auth.js).
